@@ -36,6 +36,36 @@ class TableSerializer(serializers.ModelSerializer):
         fields = ['id', 'table_num', 'device_id', 'is_active', 'capacity', 
                  'is_available', 'active_orders_count']
         read_only_fields = ['id', 'device_id', 'is_available', 'active_orders_count']
+        
+class TableLinkSerializer(serializers.Serializer):
+    device_id = serializers.CharField()
+    table_num = serializers.IntegerField()
+
+    def validate(self, data):
+        table_num = data.get('table_num')
+        device_id = data.get('device_id')
+
+        try:
+            table = Table.objects.get(table_num=table_num)
+
+            if table.device_id and table.device_id != device_id:
+                raise serializers.ValidationError(
+                    "This table is already linked to another device. Please reset the table from admin if there was a reinstallation."
+                )
+        except Table.DoesNotExist:
+            raise serializers.ValidationError("Table does not exist")
+
+        return data
+
+    def save(self):
+        table_num = self.validated_data.get('table_num')
+        device_id = self.validated_data.get('device_id')
+
+        table = Table.objects.get(table_num=table_num)
+        table.device_id = device_id  # Set the device_id on the table
+        table.save()  # Save the updated table object
+        return table
+    
 
 class OrderItemSerializer(serializers.ModelSerializer):
     dish_name = serializers.CharField(source='dish.name', read_only=True)

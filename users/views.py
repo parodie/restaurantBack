@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied
 from .models import User
 from .serializers import *
 
+
 class AdminChangePasswordView(generics.UpdateAPIView):
     queryset = User.objects.all() 
     serializer_class = ChangePasswordSerializer

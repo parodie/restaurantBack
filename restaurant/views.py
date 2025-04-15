@@ -3,9 +3,14 @@ from restaurant.models import *
 from restaurant.serializers import *
 from users.permissions import *
 from django.core.exceptions import ValidationError
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+from django.db import transaction
+
+
 
 #Admin's views 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -77,6 +82,7 @@ class WaiterOrderViewSet(viewsets.ModelViewSet):
         except ValidationError as e:
             return Response({'error': str(e)}, status=400)
         
+#client wiews or actions
 class ClientCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -93,7 +99,26 @@ class ClientDishViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsTableDevice]
 
     def get_queryset(self):
-        return Dish.objects.filter(is_available=True)
+        queryset = Dish.objects.filter(is_available=True)
+        
+        categories = self.request.query_params.get('categories')
+
+        if categories:
+            category_list = categories.split(',')  # Split multiple categories
+            queryset = queryset.filter(categories__name__in=category_list)
+
+        # Filter by price range if 'min_price' and 'max_price' query params are provided
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        if min_price and max_price:
+            queryset = queryset.filter(price__gte=min_price, price__lte=max_price)
+        elif min_price:
+            queryset = queryset.filter(price__gte=min_price)
+        elif max_price:
+            queryset = queryset.filter(price__lte=max_price)
+
+        # Return filtered queryset
+        return queryset
 
     @action(detail=False, methods=['get'])
     def search(self, request):
@@ -115,22 +140,54 @@ class ClientOrderView(generics.CreateAPIView, generics.ListAPIView):
         if not items_data:
             return Response({"error": "Order must contain items"}, status=400)
 
-        order = Order.objects.create(table=request.table, status=Order.OrderStatus.PENDING)
+        # Start a transaction to ensure atomic operations
+        with transaction.atomic():
+            order = Order.objects.create(table=request.table, status=Order.OrderStatus.PENDING)
 
-        for item in items_data:
-            dish_id = item.get('dish')
-            quantity = item.get('quantity', 1)
-            try:
-                dish = Dish.objects.get(id=dish_id, is_available=True)
-                OrderItem.objects.create(order=order, dish=dish, quantity=quantity, price=dish.price)
-            except Dish.DoesNotExist:
-                order.delete()
-                return Response({"error": f"Dish {dish_id} not available"}, status=400)
+            for item in items_data:
+                dish_id = item.get('dish')
+                quantity = item.get('quantity', 1)
 
-        order.update_total_price()
+                try:
+                    dish = Dish.objects.get(id=dish_id, is_available=True)
+                    OrderItem.objects.create(order=order, dish=dish, quantity=quantity, price=dish.price)
+                except Dish.DoesNotExist:
+                    order.delete()  # Rollback the entire order if a dish is not found
+                    raise ValidationError(f"Dish {dish_id} not available")
+
+            # Recalculate total price
+            order.update_total_price()
         return Response({
             "message": "Order placed",
             "order_id": order.id,
             "status": order.status,
             "total_price": str(order.total_price)
         }, status=201)
+        
+#link view 
+class LinkDeviceToTableView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request):
+        serializer = TableLinkSerializer(data=request.data)
+        if serializer.is_valid():
+            table = serializer.save()
+            return Response({"message": f"Device linked to Table {table.table_num}"})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_device(request):
+    device_id = request.data.get('device_id')
+    table_num = request.data.get('table_num')
+
+    if not device_id or not table_num:
+        return Response({"error": "Missing device_id or table_num"}, status=400)
+    
+    try:
+        table = Table.objects.get(table_num=table_num)
+        if table.device_id == device_id:
+            return Response({"status": "valid", "table_num": table.table_num, "capacity": table.capacity})
+        else:
+            return Response({"status": "unauthorized", "reason": "Device ID does not match"}, status=403)
+    except Table.DoesNotExist:
+        return Response({"error": "Table not found"}, status=404)

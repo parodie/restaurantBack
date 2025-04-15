@@ -21,6 +21,10 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import PermissionDenied
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from restaurant.models import *
+
+User = get_user_model()
 
 class RoleRequired(BasePermission):
     """Base permission class for role-based access"""
@@ -90,7 +94,7 @@ class IsAdminOrTableDevice(BasePermission):
     def has_permission(self, request, view):
         return (request.user.is_authenticated and request.user.is_admin) or hasattr(request, 'table')
     
-class IsTableDevice(permissions.BasePermission):
+class IsTableDevice(BasePermission):
     """
     Permission to only allow access to table devices.
     """

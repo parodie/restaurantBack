@@ -19,8 +19,8 @@ class DishAdmin(admin.ModelAdmin):
 
 @admin.register(Table)
 class TableAdmin(admin.ModelAdmin):
-    list_display = ['table_num', 'capacity', 'is_active', 'is_available']
-    list_filter = ['is_active', 'is_available']
+    list_display = ['table_num', 'capacity', 'is_active', 'device_id']
+    list_filter = ['is_active', ]
     search_fields = ['table_num', 'device_id']
 
 ### Read-only Models ###
@@ -40,8 +40,8 @@ class OrderAdmin(admin.ModelAdmin):
 
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
-    list_display = ['dish', 'quantity', 'price', 'total_price']
-    readonly_fields = ['dish', 'quantity', 'price', 'total_price', 'order']
+    list_display = ['dish', 'quantity', 'price']
+    readonly_fields = ['dish', 'quantity', 'price', 'order']
     def has_add_permission(self, request): return False
     def has_change_permission(self, request, obj=None): return False
     def has_delete_permission(self, request, obj=None): return False

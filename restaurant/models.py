@@ -1,5 +1,4 @@
 from django.db import models
-from model_utils.fields import ListCharField
 from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -34,7 +33,7 @@ class Dish(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2)
     categories = models.ManyToManyField(Category, related_name='dishes')
     image = models.ImageField(upload_to='dish_images/', blank=True, null=True)
-    ingredients = ListCharField(base_field=models.CharField(max_length=50), size=20, blank=True)  
+    ingredients = models.CharField(max_length=255, blank=True)
     is_available = models.BooleanField(default=True)
 
     def __str__(self):
@@ -43,12 +42,10 @@ class Dish(models.Model):
     class Meta:
         verbose_name = "Dish"
         verbose_name_plural = "Dishes"
+        
     
     def is_available_for_order(self):
         return self.is_available
-    
-    def get_ingredients_list(self):
-        return ", ".join(self.ingredients)
     
     def toggle_availability(self):
         self.is_available = not self.is_available
@@ -59,7 +56,7 @@ class Dish(models.Model):
     
 class Table(models.Model):
     table_num = models.PositiveIntegerField(unique=True)
-    device_id = models.CharField(max_length=255, blank=True, null=True)
+    device_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     is_active = models.BooleanField(default=True)
     capacity = models.PositiveIntegerField(default=4)
 
@@ -74,8 +71,6 @@ class Table(models.Model):
         if self.table_num <= 0:
             raise ValidationError("Table number must be positive")
          
-        if not self.dish.is_available:
-            raise ValidationError(f"The dish '{self.dish.name}' is not available")
     
     def get_active_orders(self):
         return Order.objects.filter(
@@ -131,9 +126,9 @@ class Order(models.Model):
         
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name='orders')
     order_time = models.DateTimeField(auto_now_add=True)
-    completed_time = models.DateTimeField(auto_now=True)
-    total_price = models.DecimalField(max_digits=6, decimal_places=2)
-    items_count = models.IntegerField()
+    completed_time = models.DateTimeField(null=True, blank=True)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  
+    items_count = models.IntegerField(null=True, blank=True)
     status = models.CharField(
         max_length=20, 
         choices=OrderStatus.choices, 
@@ -218,6 +213,7 @@ class Order(models.Model):
             return self.completed_time - self.order_time
         return timezone.now() - self.order_time
     
+    @property
     def is_active(self):
         return self.status in [
             self.OrderStatus.PENDING, 
@@ -256,9 +252,6 @@ class Order(models.Model):
             return []
         
 
-
-    
-
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     dish = models.ForeignKey(Dish, on_delete=models.CASCADE)
@@ -276,7 +269,7 @@ class OrderItem(models.Model):
     
     def save(self, *args, **kwargs):
         # Automatically set price from the dish if not specified
-        if not self.price:
+        if self.price is None:
             self.price = self.dish.price
         super().save(*args, **kwargs)
         
@@ -294,8 +287,6 @@ class Stats(models.Model):
     total_revenue = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Total revenue for the day/week/month
     peak_hour = models.IntegerField(null=True, blank=True)  # Hour with the highest number of orders (24-hour format)
     items_sold = models.IntegerField(default=0)  # Total items sold
-
-    #orders = models.ManyToManyField(Order, related_name="stats", blank=True, null=True)
 
     def __str__(self):
         return f"Stats for {self.date}"
