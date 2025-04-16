@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from .models import Category, Dish, Table, Order, OrderItem, Stats
 from users.models import User
+import uuid
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,19 +39,17 @@ class TableSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'device_id', 'is_available', 'active_orders_count']
         
 class TableLinkSerializer(serializers.Serializer):
-    device_id = serializers.CharField()
     table_num = serializers.IntegerField()
 
     def validate(self, data):
         table_num = data.get('table_num')
-        device_id = data.get('device_id')
 
         try:
             table = Table.objects.get(table_num=table_num)
 
-            if table.device_id and table.device_id != device_id:
+            if table.device_id:
                 raise serializers.ValidationError(
-                    "This table is already linked to another device. Please reset the table from admin if there was a reinstallation."
+                    "This table is already linked to a device. Please reset it from the admin panel."
                 )
         except Table.DoesNotExist:
             raise serializers.ValidationError("Table does not exist")
@@ -59,14 +58,16 @@ class TableLinkSerializer(serializers.Serializer):
 
     def save(self):
         table_num = self.validated_data.get('table_num')
-        device_id = self.validated_data.get('device_id')
 
         table = Table.objects.get(table_num=table_num)
-        table.device_id = device_id  # Set the device_id on the table
-        table.save()  # Save the updated table object
+        generated_uuid = uuid.uuid4()  # Backend generates the device_id
+
+        table.device_id = generated_uuid
+        table.save()
+
         return table
     
-
+    
 class OrderItemSerializer(serializers.ModelSerializer):
     dish_name = serializers.CharField(source='dish.name', read_only=True)
     total_price = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)

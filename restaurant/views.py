@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from django.db import transaction
+import uuid
 
 
 
@@ -171,8 +172,13 @@ class LinkDeviceToTableView(APIView):
         serializer = TableLinkSerializer(data=request.data)
         if serializer.is_valid():
             table = serializer.save()
-            return Response({"message": f"Device linked to Table {table.table_num}"})
+            return Response({
+                "message": f"Device linked to Table {table.table_num}",
+                "device_id": str(table.device_id),  # Return it to the frontend
+                "table_num": table.table_num
+            }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -191,3 +197,9 @@ def verify_device(request):
             return Response({"status": "unauthorized", "reason": "Device ID does not match"}, status=403)
     except Table.DoesNotExist:
         return Response({"error": "Table not found"}, status=404)
+    
+#####################
+class AvailableTablesView(generics.ListAPIView):
+    queryset = Table.objects.filter(device_id__isnull=True)
+    serializer_class = TableSerializer
+    permission_classes = [AllowAny]
