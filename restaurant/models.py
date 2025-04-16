@@ -33,7 +33,7 @@ class Dish(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2)
     categories = models.ManyToManyField(Category, related_name='dishes')
     image = models.ImageField(upload_to='dish_images/', blank=True, null=True)
-    ingredients = models.CharField(max_length=255, blank=True)
+    ingredients = models.JSONField(blank=True, null=True, default=list)    
     is_available = models.BooleanField(default=True)
 
     def __str__(self):

@@ -12,8 +12,12 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class DishSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
-    ingredients = serializers.ListField(child=serializers.CharField(), required=False)
-    
+    ingredients = serializers.ListField(
+            child=serializers.CharField(),
+            required=False,
+            allow_null=True,
+            allow_empty=True
+        )    
     class Meta:
         model = Dish
         fields = ['id', 'name', 'description', 'price', 'categories', 
@@ -22,8 +26,8 @@ class DishSerializer(serializers.ModelSerializer):
         
     def validate(self, value):
         """Validate that the dish is available"""
-        if not value.is_available:
-            raise serializers.ValidationError(f"The dish '{value.name}' is not available")
+        if value.get("is_available") is False:
+            raise serializers.ValidationError(f"The dish '{value.get('name', 'Unknown')}' is not available")
         return value
 
 
