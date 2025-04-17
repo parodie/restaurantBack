@@ -39,7 +39,7 @@ class StatsViewSet(viewsets.ReadOnlyModelViewSet):
 class ChefOrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [IsChef]
+    permission_classes = [IsChef] 
 
     @action(detail=True, methods=['post'])
     def mark_as_in_progress(self, request, pk=None):
@@ -131,19 +131,25 @@ class ClientDishViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ClientOrderView(generics.CreateAPIView, generics.ListAPIView):
     serializer_class = OrderSerializer
-    permission_classes = [IsTableDevice]
+    permission_classes = [IsTableDevice] 
 
     def get_queryset(self):
-        return Order.objects.filter(table=self.request.table).exclude(status=Order.OrderStatus.SERVED)
+        table_id = self.request.data.get('table')  
+        if table_id:
+            return Order.objects.filter(table_id=table_id).exclude(status=Order.OrderStatus.SERVED)
+        return Order.objects.none()  
 
     def create(self, request, *args, **kwargs):
+        table_id = request.data.get('table') 
+        if not table_id:
+            return Response({"error": "Table is required"}, status=400)
+
         items_data = request.data.get('items', [])
         if not items_data:
             return Response({"error": "Order must contain items"}, status=400)
 
-        # Start a transaction to ensure atomic operations
         with transaction.atomic():
-            order = Order.objects.create(table=request.table, status=Order.OrderStatus.PENDING)
+            order = Order.objects.create(table_id=table_id, status=Order.OrderStatus.PENDING)
 
             for item in items_data:
                 dish_id = item.get('dish')
@@ -153,17 +159,18 @@ class ClientOrderView(generics.CreateAPIView, generics.ListAPIView):
                     dish = Dish.objects.get(id=dish_id, is_available=True)
                     OrderItem.objects.create(order=order, dish=dish, quantity=quantity, price=dish.price)
                 except Dish.DoesNotExist:
-                    order.delete()  # Rollback the entire order if a dish is not found
+                    order.delete()  
                     raise ValidationError(f"Dish {dish_id} not available")
 
-            # Recalculate total price
             order.update_total_price()
+
         return Response({
             "message": "Order placed",
             "order_id": order.id,
             "status": order.status,
             "total_price": str(order.total_price)
         }, status=201)
+
         
 #link view 
 class LinkDeviceToTableView(APIView):
