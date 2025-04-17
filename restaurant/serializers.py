@@ -1,6 +1,6 @@
 # restaurant/serializers.py
 from rest_framework import serializers
-from .models import Category, Dish, Table, Order, OrderItem, Stats
+from .models import Category, Dish, Table, Order, OrderItem, Stats, Ingredient
 from users.models import User
 import uuid
 
@@ -10,18 +10,20 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'image']
         read_only_fields = ['id']
 
+class IngredientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ingredient
+        fields = ['id', 'name', 'icon']
+
+
 class DishSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
-    ingredients = serializers.ListField(
-            child=serializers.CharField(),
-            required=False,
-            allow_null=True,
-            allow_empty=True
-        )    
+    ingredients = ingredients = IngredientSerializer(many=True)
+
     class Meta:
         model = Dish
         fields = ['id', 'name', 'description', 'price', 'categories', 
-                 'image', 'ingredients', 'is_available']
+                 'image', 'ingredients', 'time', 'is_available']
         read_only_fields = ['id']
         
     def validate(self, value):

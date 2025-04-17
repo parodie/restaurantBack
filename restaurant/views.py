@@ -169,6 +169,7 @@ class ClientOrderView(generics.CreateAPIView, generics.ListAPIView):
 class LinkDeviceToTableView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
+        print("Received data:", request.data)
         serializer = TableLinkSerializer(data=request.data)
         if serializer.is_valid():
             table = serializer.save()

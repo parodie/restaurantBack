@@ -27,13 +27,28 @@ class Category(models.Model):
             return self.dishes.filter(is_available=True)
         return self.dishes.all()
     
+class Ingredient(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    icon = models.CharField(max_length=10, blank=True, null=True) 
+
+    def __str__(self):
+        return self.name  
+
+    class Meta:
+        verbose_name = "Ingredient"
+        verbose_name_plural = "Ingredients"
+
+def __str__(self):
+    return self.name
+    
 class Dish(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=6, decimal_places=2)
     categories = models.ManyToManyField(Category, related_name='dishes')
     image = models.ImageField(upload_to='dish_images/', blank=True, null=True)
-    ingredients = models.JSONField(blank=True, null=True, default=list)    
+    ingredients = models.ManyToManyField(Ingredient, blank=True)
+    time = models.JSONField(default=dict)     
     is_available = models.BooleanField(default=True)
 
     def __str__(self):
@@ -53,6 +68,7 @@ class Dish(models.Model):
     
     def get_category_names(self):
         return ", ".join([category.name for category in self.categories.all()])
+
     
 class Table(models.Model):
     table_num = models.PositiveIntegerField(unique=True)

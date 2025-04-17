@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Dish, Table, Order, OrderItem, Stats
+from .models import Category, Dish, Table, Order, OrderItem, Stats, Ingredient
 
 ### Editable Models ###
 
@@ -8,13 +8,16 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'description']
     search_fields = ['name']
 
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = ('name', 'icon')
 
 @admin.register(Dish)
 class DishAdmin(admin.ModelAdmin):
     list_display = ['name', 'price', 'is_available']
-    list_filter = ['is_available', 'categories']
+    list_filter = ['is_available']
     search_fields = ['name']
-    filter_horizontal = ['categories']
+    filter_horizontal = ("categories", "ingredients")
 
 
 @admin.register(Table)
