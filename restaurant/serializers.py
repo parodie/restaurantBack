@@ -3,6 +3,10 @@ from rest_framework import serializers
 from .models import Category, Dish, Table, Order, OrderItem, Stats, Ingredient
 from users.models import User
 import uuid
+import jwt
+import datetime
+from django.conf import settings
+
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -66,12 +70,22 @@ class TableLinkSerializer(serializers.Serializer):
         table_num = self.validated_data.get('table_num')
 
         table = Table.objects.get(table_num=table_num)
-        generated_uuid = uuid.uuid4()  # Backend generates the device_id
+        generated_uuid = uuid.uuid4()  
 
         table.device_id = generated_uuid
         table.save()
 
-        return table
+        payload = {
+            "device_id": str(generated_uuid),
+            "table_num": table.table_num,  
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=1)  
+        }
+        
+        print(payload) 
+
+        token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm='HS256')
+
+        return table, token
     
     
 class OrderItemSerializer(serializers.ModelSerializer):

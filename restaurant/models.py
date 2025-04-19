@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.utils.timezone import localtime
 # Create your models here.
 
 class Category(models.Model):
@@ -81,7 +82,7 @@ class Table(models.Model):
         verbose_name_plural = "Tables"
         
     def __str__(self):
-        return f"Table {self.table_num}"
+        return f"Table {self.table_num} - {self.device_id}"
     
     def clean(self):
         if self.table_num <= 0:
@@ -145,6 +146,7 @@ class Order(models.Model):
     completed_time = models.DateTimeField(null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  
     items_count = models.IntegerField(null=True, blank=True)
+    expired = models.BooleanField(default=False)  # expiry flag
     status = models.CharField(
         max_length=20, 
         choices=OrderStatus.choices, 
@@ -168,8 +170,9 @@ class Order(models.Model):
         help_text="The waiter who served this order"
     )
     
+    
     def __str__(self):
-        return f"Order #{self.id} - {self.table}"
+        return f"Order #{self.id} - Table {self.table.table_num} - {localtime(self.order_time).strftime('%Y-%m-%d %H:%M')}"
     
     def update_total_price(self):
         total = sum(item.price * item.quantity for item in self.items.all())  
@@ -215,14 +218,11 @@ class Order(models.Model):
         self.save()
 
     def cancel_order(self, user):
-        """Cancel an order - can be done by waiter or chef depending on status"""
-        if self.status in [self.OrderStatus.SERVED, self.OrderStatus.CANCELLED]:
-            raise ValidationError("Cannot cancel an order that is already served or cancelled")
-            
-        old_status = self.status
-        self.status = self.OrderStatus.CANCELLED
-        self.completed_time = timezone.now()
-        self.save()
+        if self.status == OrderStatus.PENDING:
+            self.status = OrderStatus.CANCELLED
+            self.save()
+        else:
+            raise ValidationError("Only pending orders can be cancelled.")
         
     def get_order_duration(self):
         if self.completed_time:
@@ -267,6 +267,32 @@ class Order(models.Model):
         else:
             return []
         
+    def check_expiry(self):
+        """Check if the order has expired"""
+        if not self.expired and self.order_time:
+            time_difference = timezone.now() - self.order_time
+            if time_difference.total_seconds() > settings.AUTO_RESET_TIME:
+                self.expired = True
+                self.save()
+                
+    def mark_as_expired(self):
+        """Mark only served or cancelled orders as expired"""
+        if self.status in [self.OrderStatus.SERVED, self.OrderStatus.CANCELLED]:
+            self.expired = True
+            self.save()
+            return True
+        return False
+
+    @classmethod
+    def expire_old_orders(cls, hours=24):
+        """Automatically expire old served/cancelled orders"""
+        expire_time = timezone.now() - timedelta(hours=hours)
+        return cls.objects.filter(
+            Q(status=OrderStatus.SERVED) | Q(status=OrderStatus.CANCELLED),
+            expired=False,
+            completed_time__lt=expire_time
+        ).update(expired=True)
+        
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
@@ -275,7 +301,7 @@ class OrderItem(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2)
 
     def __str__(self):
-        return f"{self.quantity} x {self.dish.name}"
+        return f"{self.quantity} x {self.dish.name} - Order# {self.order}"
     
     def get_total_price(self):
         return self.quantity * self.price

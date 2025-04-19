@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Dish, Table, Order, OrderItem, Stats, Ingredient
+from .models import Category, Dish, Table, Order, OrderItem, Stats, Ingredient, OrderItem
 
 ### Editable Models ###
 
@@ -27,7 +27,13 @@ class TableAdmin(admin.ModelAdmin):
     search_fields = ['table_num', 'device_id']
 
 ### Read-only Models ###
-
+class OrderItemInline(admin.TabularInline): 
+    model = OrderItem
+    fields = ('dish', 'quantity', 'price')
+    readonly_fields = ('dish', 'quantity', 'price')
+    can_delete = False
+    extra = 0
+    
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ['id', 'table', 'status', 'order_time', 'completed_time', 'total_price']
@@ -35,10 +41,10 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ['table__table_num']
     readonly_fields = ['table', 'status', 'order_time', 'completed_time', 
                        'total_price', 'items_count', 'prepared_by', 'served_by']
-    inlines = []  # No OrderItemInline
+    inlines = [OrderItemInline]  
     def has_add_permission(self, request): return False
     def has_change_permission(self, request, obj=None): return False
-    def has_delete_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return True
 
 
 @admin.register(OrderItem)

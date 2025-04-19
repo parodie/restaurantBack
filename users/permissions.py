@@ -94,7 +94,7 @@ class IsAdminOrTableDevice(BasePermission):
     def has_permission(self, request, view):
         return (request.user.is_authenticated and request.user.is_admin) or hasattr(request, 'table')
     
-class IsTableDevice(BasePermission):
+'''class IsTableDevice(BasePermission):
     """
     Permission to only allow access to table devices.
     """
@@ -108,5 +108,16 @@ class IsTableDevice(BasePermission):
         if table_exists:
             # Attach the table to the request for later use
             request.table = Table.objects.get(device_id=device_id)
-        return table_exists
+        return table_exists'''
+        
+class IsTableDevice(BasePermission):
+    """
+    Permission to only allow access to table devices that have been authenticated via JWT.
+    """
+    def has_permission(self, request, view):
+        table = getattr(request, 'user', None)  # table is now the 'user' in the authentication flow
+        
+        if table and table.is_active:
+            return True
+        return False
 
